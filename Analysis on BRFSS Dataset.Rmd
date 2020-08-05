@@ -1,0 +1,314 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 5
+    fig_width: 10
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(plyr)
+library(dplyr)
+```
+
+### Load data
+
+```{r load-data}
+load("C:/Users/Jawadur/Desktop/stats using r/course1/Project/brfss2013.RData")
+```
+
+
+* * *
+
+## Part 1: Data
+
+Behavioral Risk Factor Surveillance System (BRFSS) survey data is used in this project. The survey data is collected annually by the 50 states, the District of Columbia, Puerto Rico, and Guam over cellular and landline telephones.
+
+As stated in the documentation[^1] about 20% of the interviews are usually carried over cellular telephones and the rest over landline telephones. For the cellular phones, respondents' phone numbers were randomly sampled. On the other hand, for landline telephones, disproportionate stratified sampling (DSS) method generated the respondents' numbers. DSS essentially follows random sampling with an additional layer that accounts for the different densities of household telephone numbers. Additionally, if there are multiple adults living in the same household, only one of the adults is randomly selected for interview. Since random sampling had been used during data collection, the data is generalizable and it represents the non-institutionalized young adults of the 50 states, the District of Columbia, Puerto Rico, and Guam.
+
+As already mentioned, BRFSS generates survey data. It is not a scientific experiment. Hence, random assignment has not been carried out. Consequently, the data is non-causal.
+
+[^1]:<http://www.cdc.gov/brfss/data_documentation/pdf/userguidejune2013.pdf>
+
+* * *
+
+## Part 2: Research questions
+
+
+**Research quesion 1:**
+
+Does the relationship between the income level and the affordability of medical costs vary significantly across some of the states[^2]/places of residence of non-institutionalized adults?
+
+Since I live in a developing country like Bangladesh, where there is a huge gap in terms of income level, access to resources and other benefits for people living in the captial city compared to those who live outside the capital, it piques my curiosity and hence, I want to investigate the relationship for a more developed part of the world. For instance, a state where income distribution has a higher median value could also have higher medical costs; also, all states are expected to have proper healthcare facilities in a developed country, unlike, in a developing country.
+
+[^2]:Of the 50 states, the District of Columbia, Puerto Rico, and Guam.
+
+
+**Research quesion 2:**
+
+Do non-institutionalized male adults of the states who have never been diagnosed with a stroke or coronary heart disease smoke more frequently than their female counterparts, and how do these statistics compare for those who have been diagnosed with a stroke or coronary heart disease?
+
+Firstly, I am interested to explore whether people give up (or lower in frequency) the habit of something that has **potentially** caused them the harm. I like the field of psychology quite a bit and so I want to further explore whether this psychological effect is the same on both males and females of the region considered.
+
+
+**Research quesion 3:**
+
+Does inadequate sleep have a negative effect on memory and concentration?
+
+I do not sleep enough hours myself. Moreover, this relationship is **relative more** generalizable to other geographic regions as well.
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+
+**Research quesion 1:**
+
+Variables Used:
+
+1. X_state: State Fips Code
+
+2. medcost: Could Not See Dr. Because Of Cost
+
+3. income2: Income Level
+
+
+For research question 1, the data is first subsetted by extracting the complete cases (i.e. cases with no missing values) of the three variables. This data will later be analyzed for answering research question 1.
+
+```{r}
+ques1data <- subset(brfss2013, select = c(X_state, medcost, income2))
+ques1data <- ques1data[complete.cases(ques1data),]
+
+dim(brfss2013)
+dim(ques1data)
+```
+
+There are now 419533 complete cases of the 3 variables after the subsetting step.
+
+There are more than 50 different states in the dataset. Hence, some preliminary analysis will be carried out in order to select only some of the states for the exploratory data analysis. These states will be selected based on the value of a calculated variable - *Medcost_Prop_Yes_No*, which will represent the proportion of people per state who reported an instance where they did not go to the doctor due to overbearing medical costs to those who reported to have went on to see the doctor despite the costs.
+
+```{r}
+temp1 <- data.frame(table(brfss2013$X_state, brfss2013$medcost))
+
+temp2 <- temp1[temp1$Var2 == 'Yes',]
+temp3 <- temp1[temp1$Var2 == 'No',]
+
+prop <- data.frame(temp2$Freq / temp3$Freq)
+States <- data.frame(temp2$Var1)
+States_medcost_Prop <-  bind_cols(States,prop)
+
+colnames(States_medcost_Prop) <- c("States", "Medcost_Prop_Yes_No")
+States_medcost_Prop <- States_medcost_Prop[States_medcost_Prop$Medcost_Prop_Yes_No != 'NaN',]
+States_medcost_Prop <- States_medcost_Prop[order(States_medcost_Prop$Medcost_Prop_Yes_No),]
+
+head(States_medcost_Prop, n=5)
+tail(States_medcost_Prop, n=5)
+
+```
+
+North Dakota, District of Columbia and Iowa have the lowest proportion values, i.e. lowest proportions for these states in terms of people not going to see the doctor due to high medical costs against seeing doctor despite the medical costs. On the other hand, Georgia, Mississippi and Guam have the highest proportion values, i.e. more cases where people did not go to see doctor due to medical costs. The median proportion value is that of the state of Missouri. Michigan and Virginia are positioned just before and after Missouri for this ordered statistic. Therefore, these nine states (three each from high, mid and low ends) are selected to compare and contrast the relationship between income level and affordability of medical costs.
+
+Some summary statistics of the *Medcost_Prop_Yes_No* variable are shown next.
+
+```{r}
+summarise(States_medcost_Prop, mean = mean(Medcost_Prop_Yes_No), median = median(Medcost_Prop_Yes_No), sdev = sd(Medcost_Prop_Yes_No), iqr = IQR(Medcost_Prop_Yes_No))
+```
+
+The mean and median have similar values which suggest that the variable should be normally distributed.
+
+The distribution of the medical cost proportion is plotted next as a histogram.
+
+```{r fig.align="center"}
+a <- ggplot(States_medcost_Prop, aes(States_medcost_Prop$Medcost_Prop_Yes_No)) + geom_histogram(breaks=seq(0,0.3,by=0.03), col="blue", aes(fill=..count..)) + labs(title="Distribution of medical cost proportion variable",x="Medical cost proportion",y="Count of states") + theme_bw()
+a
+```
+
+The distribution is indeed bell-shaped without much spread, which was also indicated by the inter-quartile range and standard deviation values found above.
+
+Next, the distribution of the same variable for only the nine selected states is shown.
+
+```{r fig.align="center"}
+keep <- c("North Dakota", "District of Columbia", "Iowa", "Michigan", "Missouri","Virginia","Georgia","Mississippi","Guam")
+States_medcost_Prop_subset <- subset(States_medcost_Prop, States %in% keep)
+b <- ggplot(States_medcost_Prop_subset, aes(States_medcost_Prop_subset$Medcost_Prop_Yes_No)) + geom_histogram(breaks=seq(0,0.3,by=0.03), col="blue", aes(fill=..count..)) + labs(title="Distribution of medical cost proportion variable",x="Medical cost proportion",y="Count of states") + theme_bw()
+b
+```
+
+The subsetting of data by states whose *Medcost_Prop_Yes_No* variable takes on values only at either extremes and around the median is effective since the income and medical cost affordability will be compared and contrasted across the selected states.
+
+Before breaking down the income by state, the frequency of income level categories is first illustrated for all states. 
+
+```{r fig.align="center"}
+ques1data$income2.label <- mapvalues(ques1data$income2,
+c('Less than $10,000', 'Less than $15,000', 'Less than $20,000', 'Less than $25,000', 'Less than $35,000', 'Less than $50,000',
+'Less than $75,000', '$75,000 or more'),
+c("<10K", "<15K", "<20K", "<25K",
+"<35K", "<50K", "<75K", ">=75K"))
+
+c <- ggplot(ques1data, aes(income2.label)) + geom_bar(aes(fill=ques1data$income2.label), col="blue") + guides(fill=FALSE) + labs(title="Income level distribution including all states", x="Income level", y="Total count") + scale_fill_brewer(palette="Blues") + theme_bw()
+c
+```
+
+Since the income level is ordered from low to high it can be said that the income level including all states gives a right-skewed distribution. Most people reported that their income level is greater than US$35,000. The most frequent category is *>=75K* by a long margin.
+
+```{r}
+ques1finalset <- subset(ques1data, X_state %in% keep)
+
+ques1finalset$X_state.level <- mapvalues(ques1finalset$X_state,
+c("North Dakota", "District of Columbia", "Iowa", "Michigan", "Missouri","Virginia","Georgia","Mississippi","Guam"), c("Low", "Low", "Low", "Mid","Mid", "Mid", "High", "High", "High"))
+
+dim(ques1finalset)
+
+```
+
+After subsetting the data by selecting only the complete cases of the three variables and after selecting only the nine states for question 1, the final anaylsis is carried out using 57362 observations. Besides the three variables that were chosen for this study, two other have been calculated and added to the data for plotting purposes.
+
+```{r fig.height=8, fig.align="center"}
+neworder <- c("North Dakota", "District of Columbia", "Iowa", "Michigan","Missouri","Virginia","Georgia","Mississippi","Guam")
+
+ques1finalset2 <- arrange(transform(ques1finalset,X_state=factor(X_state,levels=neworder)),X_state)
+
+d = ggplot(ques1finalset2, aes(income2.label)) + geom_bar(aes(fill=income2.label), col="blue") + facet_wrap(~X_state,scales="free") + guides(fill=FALSE) + labs(title="Income level distributions of selected states", x="Income level", y="Total count") + scale_fill_brewer(palette="Blues") + theme_bw()
+d
+```
+
+The first row of plots are of the states which had lowest proportion of people who did not see doctor due to medical costs, the middle row had values around the median, and the last row had highest proportion values. For the states where the lowest number of respondents said that they did not go to doctor due to high medical costs, the income distributions are most right-skewed, i.e. most people reported that they fall in the higher income categories. Next, the states with mid-range values of the calculated proportion value *Medcost_Prop_Yes_No* have more people in the lower income categories *compared* to the states states in the first row. Finally, the plots in the last row have much more people in the lowest income categories *compared* to the upper two rows of plots. The states in the last row had highest proportion of people who did not see doctor due to medical cost.
+
+For a clearer picture, the data in each row are aggragated and the results are now broken down as 'low', 'mid' and 'high' categories.
+
+```{r fig.align="center"}
+neworder2 <- c("Low","Mid","High")
+
+ques1finalset3 <- arrange(transform(ques1finalset,X_state.level=factor(X_state.level,levels=neworder2)),X_state.level)
+
+e = ggplot(ques1finalset3, aes(income2.label)) + geom_bar(aes(fill=income2.label), col="blue") + facet_wrap(~X_state.level,scales="free") + guides(fill=FALSE) + labs(title="Income level distributions of states with different medical cost responses", x="Income level", y="Total count") + scale_fill_brewer(palette="Blues") + theme_bw()
+e
+```
+
+The same pattern can be seen and it is much clearer now that there is indeed a relationship between the income level and the affordability of medical costs for non-institutionalized adults of the states. States where people have highest income levels responded most often with a *No* when asked whether they did not see the doctor due to high medical costs. States where people reported having *relatively* lower earnings produced more *Yes* responses when the same question was asked to them.
+
+It is important to note that the data does not come from any scientific experiment (no random assignment) and hence the result based on it is non-causal. In other words, the relationship that has been shown between income level and affordability of medical cost may also have other contributing confounders, e.g. it is possible that medical costs may vary by each state in a manner that produces the same relationship as shown here.
+
+***
+
+**Research quesion 2:**
+
+Variables Used:
+
+1. sex: Respondents Sex
+
+2. cvdstrk3: Ever Diagnosed With A Stroke
+
+3. cvdcrhd4: Ever Diagnosed With Angina Or Coronary Heart Disease
+
+4. smokday2: Frequency Of Days Now Smoking
+
+For research question 2, the data is first subsetted by extracting the complete cases (i.e. cases with no missing values) of the four variables. This data will now be analyzed for answering research question 2.
+
+```{r}
+ques2data <- subset(brfss2013, select = c(sex, cvdstrk3, cvdcrhd4, smokday2))
+ques2data <- ques2data[complete.cases(ques2data),]
+
+dim(ques2data)
+
+```
+
+
+```{r}
+males <- ques2data[ques2data == 'Male',]
+females <- ques2data[ques2data == 'Female',]
+females <- females[sample(nrow(females), nrow(males)), ]
+ques2data <- bind_rows(males,females)
+
+dim(ques2data)
+
+dim(males)
+dim(females)
+```
+
+Since there were more female respondents than males in the subsetted data, the female respondents are randomly downsampled. 99235 males and 99235 females make up the dataset, which will be used for the analyses of question 2.
+
+```{r}
+percent_stroke <- sum(ques2data$cvdstrk3=="Yes")/nrow(ques2data)*100
+percent_stroke
+
+percent_cardiac <- sum(ques2data$cvdcrhd4=="Yes")/nrow(ques2data)*100
+percent_cardiac
+```
+
+Some more summary statistics are preseted here. 5.23% and 8.26% of people reported that they had been diagnosed with a stroke and coronary heart disease respectively. All the variables for this part are categorical variables. Hence, further analyses will now be carried out using bar plots.
+
+```{r fig.height=7, fig.align="center"}
+f <- ggplot(ques2data, aes(smokday2)) + geom_bar(aes(fill = sex), position = "dodge", col="blue") + facet_grid(cvdstrk3~.,scales="free") + scale_fill_brewer(palette="Blues") + labs(title="Frequency of days smoking with and without stroke", x="Smoking days frequency", y="Total count") + theme_bw()
+f
+```
+
+The first subplot shows the subset of people who had been diagnosed with a stroke and the second one shows the subset of those who received no such diagnosis. It can be seen from the *Every day* and *Some days* categories that females smoke slightly more frequently than males in general in this part of the world. Also, almost the same number of males and females in the data reported to have been diagnosed with a stroke. Among those diagnosed with a stroke, males in general appear to have an even lower frequency of smoking than females when compared to the subset of people who had never been diagosed with a stroke. Overall, the frequency of smoking for males who had a stroke are found to be slightly lower than the ones who received no stroke diagnosis.
+
+```{r fig.height=7, fig.align="center"}
+g <- ggplot(ques2data, aes(smokday2)) + geom_bar(aes(fill = sex), position = "dodge", col="blue") + facet_grid(cvdcrhd4~.,scales="free") + scale_fill_brewer(palette="Blues") + labs(title="Frequency of days smoking with and without heart disease", x="Smoking days frequency", y="Total count") + theme_bw()
+g
+```
+
+Now, the same analysis will be carried out for people who reported to have coronary heart disease. The first subplot shows the subset of people who had been diagnosed with coronary heart disease and the second one shows the subset of those who received no such diagnosis. It is clear from this illustration that a lot more males reported that they had been diagnosed with coronary heart disease than females. The smoking frequency of males is much lower in the coronary heart disease subset. Although, the number of females with coronary heart disease is much less than the males, there are still almost same count of males and females in the *Every day* and *Some days* categories of smoking frequency as shown in the upper subplot. This is a clear indication that a larger proportion of males who had diagnosis of coronary heart disease fall in the *Not at all* smoking frequency category when compared to the females who received the same diagnosis.
+
+It can be concluded that people in these states, especially males, smoke less frequently in general if they receive diagnosis of stroke or coronary heart disease compared to those people who did not receive any such diagnosis, i.e. those who are free from chronic health issues. Again, the same argument about causality holds here. There is a possibility that there are other confounding factors that may explain the slightly different behavior of these subsets of people.
+
+***
+
+**Research quesion 3:**
+
+Variables Used:
+
+1. sleptim1: How Much Time Do You Sleep
+
+2. decide: Difficulty Concentrating Or Remembering
+
+For research question 3, the data is first subsetted by extracting the complete cases (i.e. cases with no missing values) of the two variables. This data will now be analyzed for answering research question 3.
+
+```{r}
+ques3data <- subset(brfss2013, select = c(sleptim1, decide))
+ques3data <- ques3data[complete.cases(ques3data),]
+
+summarise(ques3data, n=nrow(ques3data), mean = mean(sleptim1), median = median(sleptim1), sdev = sd(sleptim1), iqr = IQR(sleptim1))
+
+```
+
+
+
+```{r}
+
+percent_with_difficulty <- sum(ques3data$decide=="Yes")/nrow(ques3data)*100
+percent_with_difficulty
+```
+
+The summary statistics of total sleep time of complete cases subset of data is presented above. Discussions of summary statistics will follow after break down by groups according to people who have difficulty remembering or concentrating and those who do not face such difficulties.
+
+10.35% of respondents reported that they had difficulty concentrating or remembering. The rest of the people said they faced no such difficulties.
+
+```{r}
+decideYes <- ques3data[ques3data$decide == "Yes",]
+decideNo <- ques3data[ques3data$decide == "No",]
+
+summarise(decideYes, n=nrow(decideYes), mean = mean(sleptim1), median = median(sleptim1), sdev = sd(sleptim1), iqr = IQR(sleptim1))
+
+summarise(decideNo, n=nrow(decideNo), mean = mean(sleptim1), median = median(sleptim1), sdev = sd(sleptim1), iqr = IQR(sleptim1))
+```
+
+The group with difficulty has a lower mean/average sleep time than the other group. The median value is the same for both groups. Here onwards, the group who reported to have difficulties will be addressed as the first group, and the other group as the second group. Higher values of standard deviation and inter-quartile range indicates that the distribution of the first group's total sleep time is more spread out than that of the second group.
+
+```{r fig.align="center"}
+h<-ggplot(ques3data, aes(decide,sleptim1)) + geom_violin(scale="area", col="blue", aes(fill=decide)) + scale_fill_brewer(palette="Blues") + labs(title="Distributions of total sleep time of people with and without difficulties", x="Difficulty concentrating or remembering", y="Total sleep time") + theme_bw()
+h
+```
+
+Firstly, from the figure above, it can be seen that the first group's distribution of total sleep time is bimodal and it is unimodal for the second group. Secondly, the largest amount of people in the first group sleeps six hours and the largest amount in the second group sleeps seven hours. Finally, it is evident from the distributions that a larger proportion of people in the first group sleeps five hours or less when compared to people of the second group, where almost all the cases are concentrated between six and eight hours inclusive.
+
+Therefore, it can be said that inadequate sleep does indeed have a negative effect on memory and concentration. Again, the same argument about causality holds here. There is a possibility that there are other confounding factors that may explain the slightly different effects on the two subsets of people with different total sleep times.
